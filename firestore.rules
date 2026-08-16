@@ -1,0 +1,174 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function getRole() {
+      return isAuthenticated() ? getUserData().role : null;
+    }
+    
+    function isOwnerOrAdmin() {
+      return isAuthenticated() && (getRole() == 'Owner' || getRole() == 'Admin' || getRole() == 'Owner/Admin');
+    }
+    
+    function isManager() {
+      return isAuthenticated() && (isOwnerOrAdmin() || getRole() == 'Manager');
+    }
+    
+    function isAccountant() {
+      return isAuthenticated() && (isOwnerOrAdmin() || getRole() == 'Accountant');
+    }
+    
+    function isCashier() {
+      return isAuthenticated() && (isManager() || getRole() == 'Cashier' || getRole() == 'Sales Staff' || getRole() == 'Cashier/Sales Staff');
+    }
+    
+    function isKitchen() {
+      return isAuthenticated() && (isManager() || getRole() == 'Kitchen' || getRole() == 'Kitchen Staff');
+    }
+    
+    function isInvestor() {
+      return isAuthenticated() && getRole() == 'Investor';
+    }
+
+    // Default catch-all for authenticated operations in our food management ecosystem
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() || request.auth.uid == userId;
+      allow update, delete: if isOwnerOrAdmin() || (isAuthenticated() && request.auth.uid == userId);
+    }
+    
+    // Employees collection
+    match /employees/{employeeId} {
+      allow read: if isManager() || isAccountant();
+      allow write: if isOwnerOrAdmin() || isManager();
+    }
+    
+    // Branches
+    match /branches/{branchId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwnerOrAdmin();
+    }
+    
+    // Menu items & recipes
+    match /menuItems/{menuId} {
+      allow read: if isAuthenticated();
+      allow write: if isManager();
+    }
+    
+    match /recipes/{recipeId} {
+      allow read: if isAuthenticated();
+      allow write: if isManager();
+    }
+    
+    // Inventory & Ingredients
+    match /ingredients/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isManager() || isKitchen() || isCashier();
+    }
+    
+    match /inventory/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isManager() || isKitchen() || isCashier();
+    }
+    
+    match /inventoryMovements/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwnerOrAdmin();
+    }
+    
+    // Orders & Order Items
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isCashier() || isKitchen() || isManager();
+      allow delete: if isOwnerOrAdmin();
+    }
+    
+    match /orderItems/{itemId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isOwnerOrAdmin();
+    }
+    
+    // POS shifts
+    match /posShifts/{shiftId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isCashier() || isManager();
+      allow delete: if isOwnerOrAdmin();
+    }
+    
+    // Suppliers & Purchases
+    match /suppliers/{supplierId} {
+      allow read: if isManager() || isAccountant();
+      allow write: if isManager();
+    }
+    
+    match /purchases/{purchaseId} {
+      allow read: if isManager() || isAccountant();
+      allow write: if isManager() || isAccountant();
+    }
+    
+    // Expenses
+    match /expenses/{expenseId} {
+      allow read: if isManager() || isAccountant();
+      allow create: if isAuthenticated();
+      allow update, delete: if isOwnerOrAdmin() || isManager();
+    }
+    
+    // Investors & Investor Payments
+    match /investors/{investorId} {
+      allow read: if isOwnerOrAdmin() || isAccountant() || (isInvestor() && request.auth.token.email == resource.data.email);
+      allow write: if isOwnerOrAdmin() || isAccountant();
+    }
+    
+    match /investorPayments/{paymentId} {
+      allow read: if isOwnerOrAdmin() || isAccountant() || isInvestor();
+      allow write: if isOwnerOrAdmin() || isAccountant();
+    }
+    
+    // Payroll
+    match /payroll/{payrollId} {
+      allow read: if isOwnerOrAdmin() || isAccountant();
+      allow write: if isOwnerOrAdmin() || isAccountant();
+    }
+    
+    match /payrollItems/{itemId} {
+      allow read: if isOwnerOrAdmin() || isAccountant();
+      allow write: if isOwnerOrAdmin() || isAccountant();
+    }
+    
+    // Customers
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow write: if isCashier() || isManager();
+    }
+    
+    // Audit Logs & Settings & Notifications
+    match /auditLogs/{logId} {
+      allow read: if isOwnerOrAdmin() || isManager();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // immutable audit trails
+    }
+    
+    match /settings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwnerOrAdmin() || isManager();
+    }
+    
+    match /notifications/{notifId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+  }
+}

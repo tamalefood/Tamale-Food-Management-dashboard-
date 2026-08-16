@@ -1,0 +1,6 @@
+{
+  "name": "Tamale Food Management System",
+  "description": "Production-ready management dashboard, POS, recipe costing, inventory deduction, shift management, expenses, payroll, and investor tracking for Tamale Food.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
